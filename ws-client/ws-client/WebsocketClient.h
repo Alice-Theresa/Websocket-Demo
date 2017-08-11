@@ -18,8 +18,6 @@ typedef NS_ENUM(NSInteger, WebSocketState) {
 
 @interface WebsocketClient : NSObject
 
-@property (nonatomic, strong, readonly) RACSignal *receiveMessageSignal;
-
 + (instancetype)sharedClient;
 - (void)open;
 - (void)close;

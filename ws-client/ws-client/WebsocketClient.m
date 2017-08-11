@@ -20,12 +20,13 @@
 @property (nonatomic, assign) NSInteger        pongSequence;
 @property (nonatomic, assign) NSInteger        currentSequence;
 
-@property (nonatomic, strong) RACSubject    *subject;
 @property (nonatomic, strong) RACScheduler  *scheduler;
 @property (nonatomic, strong) RACDisposable *timeoutDisposable;
 @property (nonatomic, strong) RACDisposable *heartbeatDisposable;
 
 @end
+
+static NSString * const ServerIP = @"ws://192.168.9.154:8089";
 
 @implementation WebsocketClient
 
@@ -42,10 +43,9 @@
 
 - (instancetype)init {
     if (self = [super init]) {
-        _subject = [RACSubject subject];
-        _receiveMessageSignal = _subject;
         _queue = dispatch_queue_create("com.Hime.Websocket", DISPATCH_QUEUE_SERIAL);
         _scheduler = [[RACTargetQueueScheduler alloc] initWithName:@"com.Websocket.Scheduler" targetQueue:_queue];
+        [self setup];
     }
     return self;
 }
@@ -53,8 +53,8 @@
 - (void)setup {
     @weakify(self)
     [[[[[RACObserve([AFNetworkReachabilityManager sharedManager], reachable)
-         skip:1]
-        distinctUntilChanged]
+         distinctUntilChanged]
+        skip:2]
        filter:^BOOL(id  _Nullable value) {
           return [value boolValue];
       }]
@@ -71,13 +71,13 @@
     if (self.state == WebSocketStateClosed) {
         [self openInternal];
     } else {
-        [self.subject sendNext:@"websocket already opened or connecting"];
+        NSLog(@"[ws-iOS] websocket already opened or connecting");
     }
 }
 
 - (void)close {
     if (self.state == WebSocketStateClosed) {
-        [self.subject sendNext:@"websocket already closed"];
+        NSLog(@"[ws-iOS] websocket already closed");
     } else {
         [self closeInternal];
     }
@@ -86,25 +86,33 @@
 - (void)sendMessage:(NSString *)message {
     if (self.state == WebSocketStateOpen) {
         [self.websocket send:message];
-        [self.subject sendNext:@"send success"];
+        NSLog(@"[ws-iOS] send success");
     } else {
-        [self.subject sendNext:@"send fail"];
+        NSLog(@"[ws-iOS] send fail");
     }
 }
 
 #pragma mark - private
 
 - (void)openInternal {
+    if (![AFNetworkReachabilityManager sharedManager].reachable) {
+        NSLog(@"[ws-iOS] network unavailable");
+        return;
+    }
+    if (self.state != WebSocketStateClosed) {
+        NSLog(@"[ws-iOS] websocket is connecting or opened");
+        return;
+    }
     self.state = WebSocketStateConnecting;
     [self connect];
-    [self.subject sendNext:@"open websocket"];
+    NSLog(@"[ws-iOS] open websocket");
 }
 
 - (void)closeInternal {
     self.websocket = nil;
     self.state = WebSocketStateClosed;
     [self clearHeartbeat];
-    [self.subject sendNext:@"close websocket"];
+    NSLog(@"[ws-iOS] close websocket");
 }
 
 - (void)reopen {
@@ -113,7 +121,7 @@
 }
 
 - (void)connect {
-    NSURLRequest *request   = [NSURLRequest requestWithURL:[NSURL URLWithString:@"ws://127.0.0.1:8089"]];
+    NSURLRequest *request   = [NSURLRequest requestWithURL:[NSURL URLWithString:ServerIP]];
     self.websocket          = [[SRWebSocket alloc] initWithURLRequest:request];
     self.websocket.delegate = self;
     [self.websocket setDelegateDispatchQueue:self.queue];
@@ -127,7 +135,7 @@
         if (self.state == WebSocketStateOpen && self.websocket.readyState == SR_OPEN) {
             NSInteger i = ++self.currentSequence;
             [self.websocket sendPing:[NSData dataWithBytes:&i length:sizeof(i)]];
-            [self.subject sendNext:[NSString stringWithFormat:@"ping %zd", i]];
+            NSLog(@"[ws-iOS] ping %zd", i);
             [self scheduleTimeout];
         }
     }];
@@ -143,6 +151,7 @@
                 timeout = YES;
             }
             if (timeout) {
+                NSLog(@"[ws-iOS] ping timeout and reopen");
                 [self reopen];
             }
         }
@@ -165,22 +174,22 @@
 - (void)webSocketDidOpen:(SRWebSocket *)webSocket {
     self.state = WebSocketStateOpen;
     [self startPing];
-    [self.subject sendNext:[NSString stringWithFormat:@"websocket open success"]];
+    NSLog(@"[ws-iOS] websocket open success");
 }
 
 - (void)webSocket:(SRWebSocket *)webSocket didReceiveMessage:(id)message {
-    [self.subject sendNext:[NSString stringWithFormat:@"receive %@", message]];
+    NSLog(@"[ws-iOS] receive %@", message);
 }
 
 - (void)webSocket:(SRWebSocket *)webSocket didReceivePong:(NSData *)pongPayload {
     NSInteger i;
     [pongPayload getBytes:&i length:sizeof(i)];
     self.pongSequence = i;
-    [self.subject sendNext:[NSString stringWithFormat:@"pong %zd", i]];
+    NSLog(@"[ws-iOS] pong %zd", i);
 }
 
 - (void)webSocket:(SRWebSocket *)webSocket didFailWithError:(NSError *)error {
-    [self.subject sendNext:[NSString stringWithFormat:@"error: %@", error.localizedDescription]];
+    NSLog(@"[ws-iOS] error: %@", error.localizedDescription);
     [self closeInternal];
 }
 
