@@ -1,0 +1,7 @@
+target ‘ws-client’ do
+
+pod 'SocketRocket'
+pod 'ReactiveObjC’
+pod ‘AFNetworking’
+
+end
