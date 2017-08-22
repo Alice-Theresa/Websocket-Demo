@@ -26,7 +26,7 @@
 
 @end
 
-static NSString * const ServerIP = @"ws://192.168.9.154:8089";
+static NSString * const ServerIP = @"ws://10.0.0.3:8089";
 
 @implementation WebsocketClient
 
@@ -172,16 +172,19 @@ static NSString * const ServerIP = @"ws://192.168.9.154:8089";
 #pragma mark - Delegate
 
 - (void)webSocketDidOpen:(SRWebSocket *)webSocket {
+    if (webSocket != self.websocket) return;
     self.state = WebSocketStateOpen;
     [self startPing];
     NSLog(@"[ws-iOS] websocket open success");
 }
 
 - (void)webSocket:(SRWebSocket *)webSocket didReceiveMessage:(id)message {
+    if (webSocket != self.websocket) return;
     NSLog(@"[ws-iOS] receive %@", message);
 }
 
 - (void)webSocket:(SRWebSocket *)webSocket didReceivePong:(NSData *)pongPayload {
+    if (webSocket != self.websocket) return;
     NSInteger i;
     [pongPayload getBytes:&i length:sizeof(i)];
     self.pongSequence = i;
@@ -189,12 +192,9 @@ static NSString * const ServerIP = @"ws://192.168.9.154:8089";
 }
 
 - (void)webSocket:(SRWebSocket *)webSocket didFailWithError:(NSError *)error {
+    if (webSocket != self.websocket) return;
     NSLog(@"[ws-iOS] error: %@", error.localizedDescription);
     [self closeInternal];
-}
-
-- (void)webSocket:(SRWebSocket *)webSocket didCloseWithCode:(NSInteger)code reason:(NSString *)reason wasClean:(BOOL)wasClean {
-
 }
 
 @end
